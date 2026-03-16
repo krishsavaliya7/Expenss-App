@@ -1,0 +1,5 @@
+-keep class com.splitsmart.app.data.api.models.** { *; }
+-keepclassmembers class com.splitsmart.app.data.api.models.** { *; }
+-keep class com.squareup.moshi.** { *; }
+-dontwarn okhttp3.**
+-dontwarn retrofit2.**

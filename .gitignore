@@ -1,0 +1,44 @@
+# ── Python ──────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyd
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# ── Virtual Environment ──────────────────
+MasterMinds/
+venv/
+.venv/
+env/
+
+# ── Database ─────────────────────────────
+*.db
+*.sqlite3
+
+# ── User Uploads ─────────────────────────
+uploads/*
+!uploads/.gitkeep
+
+# ── Environment / Secrets ────────────────
+.env
+.env.*
+
+# ── Dev Tool Configs ─────────────────────
+.claude/
+.idea/
+.vscode/
+
+# ── Android Build Cache ──────────────────
+android/.gradle/
+android/build/
+android/app/build/
+
+# ── OS Files ─────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Windows Binaries ─────────────────────
+*.exe
