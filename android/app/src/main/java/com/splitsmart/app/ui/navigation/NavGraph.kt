@@ -39,13 +39,19 @@ fun SplitSmartNavGraph(navController: NavHostController, startDestination: Strin
         composable(Routes.LOGIN) {
             val vm: AuthViewModel = hiltViewModel()
             val state by vm.uiState.collectAsState()
-            LoginScreen(state, onLogin = { l, p -> vm.login(l, p) }, onNavigateToSignup = { navController.navigate(Routes.SIGNUP) }, onLoginSuccess = { navController.navigate(Routes.DASHBOARD) { popUpTo(Routes.LOGIN) { inclusive = true } } })
+            androidx.compose.runtime.LaunchedEffect(state.user) {
+                if (state.user != null) navController.navigate(Routes.DASHBOARD) { popUpTo(Routes.LOGIN) { inclusive = true } }
+            }
+            LoginScreen(state, onLogin = { l, p -> vm.login(l, p) }, onNavigateToSignup = { navController.navigate(Routes.SIGNUP) }, onClearError = { vm.clearError() })
         }
 
         composable(Routes.SIGNUP) {
             val vm: AuthViewModel = hiltViewModel()
             val state by vm.uiState.collectAsState()
-            SignupScreen(state, onSignup = { e, u, f, ph, upi, p -> vm.signup(e, u, f, ph, upi, p) }, onNavigateToLogin = { navController.popBackStack() }, onSignupSuccess = { navController.navigate(Routes.DASHBOARD) { popUpTo(Routes.LOGIN) { inclusive = true } } })
+            androidx.compose.runtime.LaunchedEffect(state.user) {
+                if (state.user != null) navController.navigate(Routes.DASHBOARD) { popUpTo(Routes.LOGIN) { inclusive = true } }
+            }
+            SignupScreen(state, onSignup = { e, u, f, ph, upi, p -> vm.signup(e, u, f, ph, upi, p) }, onNavigateToLogin = { navController.popBackStack() }, onClearError = { vm.clearError() })
         }
 
         composable(Routes.DASHBOARD) {

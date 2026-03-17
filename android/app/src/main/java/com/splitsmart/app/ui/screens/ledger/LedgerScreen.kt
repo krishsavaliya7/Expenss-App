@@ -62,7 +62,7 @@ fun LedgerScreen(uiState: LedgerUiState, onSelectGroup: (Int) -> Unit, onRefresh
                             Column(Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) { AvatarCircle(tx.fromUser, 28); Text(" → ", style = MaterialTheme.typography.bodyMedium); AvatarCircle(tx.toUser, 28) }
                                 Spacer(Modifier.height(4.dp))
-                                Text("${tx.paymentMethod ?: "split"} • ${tx.createdAt.formatDateTime()}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("${tx.paymentMethod ?: "split"} • ${tx.timestamp.formatDateTime()}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             Column(horizontalAlignment = Alignment.End) {
                                 Text(tx.amount.formatCurrency("INR"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)

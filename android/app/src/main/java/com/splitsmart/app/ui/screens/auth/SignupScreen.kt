@@ -33,7 +33,7 @@ fun SignupScreen(uiState: AuthUiState, onSignup: (String, String, String, String
     var passwordVisible by remember { mutableStateOf(false) }; var localError by remember { mutableStateOf<String?>(null) }
     val focusManager = LocalFocusManager.current
 
-    Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f), MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), MaterialTheme.colorScheme.surface), start = Offset.Zero, end = Offset(Float.MAX_VALUE, Float.MAX_VALUE)))) {
+    Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f), MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), MaterialTheme.colorScheme.surface)))) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Spacer(Modifier.height(32.dp))
             Text("Create Account", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)

@@ -39,7 +39,7 @@ class NotificationsViewModel @Inject constructor(private val notificationReposit
 @Composable
 fun NotificationsScreen(uiState: NotificationsUiState, onMarkAllRead: () -> Unit, onBack: () -> Unit, onRefresh: () -> Unit) {
     Scaffold(topBar = { TopAppBar(title = { Text("Notifications", fontWeight = FontWeight.Bold) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } }, actions = { if (uiState.notifications.isNotEmpty()) IconButton(onClick = onMarkAllRead) { Icon(Icons.Filled.DoneAll, "Mark all read") } }) }) { padding ->
-        if (uiState.isLoading) ShimmerList(Modifier.padding(padding))
+        if (uiState.isLoading) ShimmerList(modifier = Modifier.padding(padding))
         else if (uiState.notifications.isEmpty()) EmptyState(Icons.Outlined.Notifications, "No notifications", "You're all caught up!", Modifier.padding(padding))
         else LazyColumn(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             item { Spacer(Modifier.height(4.dp)) }

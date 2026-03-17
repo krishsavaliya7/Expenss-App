@@ -1,305 +1,212 @@
-# 🚀 SplitSmart – AI-Inspired Expense Management & Settlement Platform
+# 💸 SplitSmart — Group Expense Management & Settlement Platform
 
-SplitSmart is a modern **expense management and settlement platform** designed to simplify group finances with **UPI-style payment simulation, intelligent debt minimization, and an immutable ledger for transaction security**.
+> Split bills. Settle smart. Track every rupee.
 
-The system helps users manage shared expenses, settle debts efficiently, and maintain **tamper-proof financial records**.
-
-Built during a hackathon to demonstrate how **FinTech, cybersecurity, and algorithmic optimization** can enhance everyday financial management.
+SplitSmart is a modern **group expense management platform** built with Flask and SQLite. It features UPI-style payment simulation, intelligent debt minimization using a greedy algorithm, and a blockchain-inspired immutable ledger for tamper-proof financial records.
 
 ---
 
-# ✨ Key Highlights
+## ✨ Features
 
-* 🔗 **Immutable Ledger System** – Blockchain-inspired transaction log using SHA256 hashes
-* 💸 **UPI-style Payment Simulation** – Simulated instant payments without external APIs
-* 🧠 **Greedy Algorithm Debt Minimization** – Reduces the number of settlement transactions
-* 👥 **Group Expense Management** – Create groups, add members, and split expenses
-* 🔐 **Secure Transaction Records** – Ledger integrity ensures tamper-proof records
-* 📱 **Mobile Optimized UI** – Fully responsive design for mobile and desktop
-* 🔔 **Notification System** – Real-time UI notifications for settlements and updates
-* 💰 **Hybrid Settlement Options** – Supports both **Cash settlements with approval** and **Online payments**
-
----
-
-# 🧠 Problem Statement
-
-Managing shared expenses in groups often becomes complicated due to:
-
-* multiple transactions
-* unclear debt tracking
-* lack of transparent records
-* inefficient settlement processes
-
-SplitSmart solves this problem by introducing:
-
-* **algorithmic debt optimization**
-* **secure financial logging**
-* **simple payment simulation**
-* **clear financial visibility**
+- 👥 **Group Expense Management** — Create groups, add friends, split bills equally, by percentage, or exact amount
+- 🧠 **Greedy Debt Minimization** — Reduces the number of settlements needed using an optimized algorithm
+- 💸 **UPI-Style Payment Simulation** — Simulate instant payments without real banking APIs
+- 💵 **Cash Settlement with Approval** — Offline payments with receiver confirmation flow
+- 🔗 **Immutable Ledger** — SHA256 hash-chain ensures every transaction is tamper-proof
+- 🔔 **Notification System** — Real-time alerts for expenses, settlements, and friend requests
+- 🔐 **Secure Auth** — Session-based login with CSRF protection and bcrypt password hashing
+- 📱 **Responsive UI** — Mobile-friendly design for all screen sizes
+- 🤝 **Friend System** — Send/accept friend requests, search users, manage connections
 
 ---
 
-# 🏗️ System Architecture
+## 🏗️ Tech Stack
 
-Frontend
-
-* HTML Templates
-* CSS (Responsive UI)
-* JavaScript (Dynamic interactions)
-
-Backend
-
-* FastAPI (Python)
-
-Database
-
-* SQLite
-
-Security Layer
-
-* SHA256 Ledger Hash Chain
+| Layer | Technology |
+|---|---|
+| Backend | Python 3.11 + Flask 2.3 |
+| Database | SQLite (via raw SQL, no ORM) |
+| Auth | Flask Sessions + Werkzeug/bcrypt |
+| Security | SHA256 ledger hashing, CSRF tokens |
+| Frontend | Jinja2 Templates + Vanilla JS + CSS |
+| Server | Gunicorn + PythonAnywhere |
 
 ---
 
-# 📊 Core Features
-
-## 1️⃣ Smart Group Expense Management
-
-Users can create groups, add members, and track shared expenses easily.
-
-Features include:
-
-* add expenses
-* split bills among members
-* track balances within groups
-* view group expense history
-
----
-
-## 2️⃣ Greedy Debt Minimization Algorithm
-
-SplitSmart reduces unnecessary transactions using a **Greedy algorithm**.
-
-Example:
-
-Before optimization:
-
-User A → User B ₹200
-User B → User C ₹150
-User C → User A ₹300
-
-After optimization:
-
-User C → User B ₹50
-User C → User A ₹150
-
-This significantly reduces the number of settlements required.
-
----
-
-## 3️⃣ UPI-Style Payment Simulation
-
-SplitSmart simulates a **real-time UPI payment experience** without using external payment gateways.
-
-Users can:
-
-* select **Pay via UPI**
-* confirm simulated payment
-* instantly settle debts
-
-This allows realistic FinTech demonstrations during hackathons without requiring real banking APIs.
-
----
-
-## 4️⃣ Cash Settlement with Receiver Approval
-
-For users who prefer offline transactions:
-
-1. Debtor selects **Settle by Cash**
-2. Receiver receives settlement request
-3. Receiver approves the transaction
-4. Ledger is updated automatically
-
-This supports real-world scenarios where not everyone uses digital payments.
-
----
-
-## 5️⃣ Immutable Ledger System
-
-All settlements are recorded in a **tamper-proof ledger**.
-
-Each transaction contains:
-
-* transaction ID
-* sender
-* receiver
-* amount
-* timestamp
-* previous hash
-* current hash
-
-Hash calculation:
-
-SHA256(
-transaction_id +
-from_user +
-to_user +
-amount +
-timestamp +
-previous_hash
-)
-
-This creates a **chain of transactions similar to blockchain systems**, ensuring data integrity.
-
----
-
-## 6️⃣ Ledger Verification
-
-The platform verifies the integrity of transaction records by checking the hash chain.
-
-If any transaction is modified, the ledger becomes invalid.
-
-This ensures **secure financial record keeping**.
-
----
-
-## 7️⃣ Notification System
-
-Users receive notifications for:
-
-* new expenses
-* settlement requests
-* payment confirmations
-* ledger updates
-
-This improves user awareness and collaboration in groups.
-
----
-
-# 📂 Project Structure
+## 📂 Project Structure
 
 ```
-MasterMinds-expense-Management-portal
-
-├── static
-│   ├── css
-│   └── js
+SplitSmart/
+├── app.py                  # Main Flask backend (~2900 lines)
+├── expense_tracker.py      # Standalone greedy algorithm demo
+├── validation.py           # Server-side input validation module
+├── wsgi.py                 # WSGI entry point for production
+├── requirements.txt        # Python dependencies
+├── runtime.txt             # Python version spec
+├── Procfile                # Process config
 │
-├── templates
-│   ├── partials
+├── templates/              # Jinja2 HTML templates
 │   ├── base.html
 │   ├── dashboard.html
-│   ├── friends.html
-│   ├── groups.html
 │   ├── group_detail.html
-│   ├── create_group.html
 │   ├── ledger.html
-│   ├── login.html
-│   ├── signup.html
-│   └── profile.html
+│   ├── friends.html
+│   └── ...
 │
-├── uploads
-│   └── user profile pictures
+├── static/
+│   ├── css/main.css
+│   └── js/
+│       ├── main.js
+│       ├── auth.js
+│       ├── friends.js
+│       ├── ledger.js
+│       └── validation.js
 │
-├── app.py
-├── expense_tracker.py
-├── expense_tracker.db
-│
-├── LEDGER_DESIGN.md
-├── LEDGER_FEATURE.md
-├── LEDGER_TESTING.md
-├── LEDGER_README.md
-│
-├── ALGORITHM.md
-├── SETUP_GUIDE.md
-├── requirements.txt
-└── README.md
+└── uploads/                # User profile pictures (gitignored)
+    └── .gitkeep
 ```
 
 ---
 
-# ⚙️ Installation & Setup
+## 🚀 Local Setup
 
-Clone the repository:
-
-```
-git clone https://github.com/VishveshSharma2005/MasterMinds-expense-Management-portal.git
-```
-
-Navigate to project directory:
-
-```
-cd MasterMinds-expense-Management-portal
+### 1. Clone the repo
+```bash
+git clone https://github.com/krishsavaliya7/Expenss-App.git
+cd Expenss-App
 ```
 
-Install dependencies:
+### 2. Create a virtual environment
+```bash
+python -m venv venv
 
+# Windows
+venv\Scripts\activate
+
+# Linux / Mac
+source venv/bin/activate
 ```
+
+### 3. Install dependencies
+```bash
 pip install -r requirements.txt
 ```
 
-Run the application:
+### 4. Set environment variable
+```bash
+# Windows PowerShell
+$env:SECRET_KEY = "your-random-secret-key-here"
 
+# Linux / Mac
+export SECRET_KEY="your-random-secret-key-here"
 ```
+
+### 5. Run the app
+```bash
 python app.py
 ```
 
-Open in browser:
+Open `http://localhost:5000` in your browser.
 
+---
+
+## ☁️ Production Deployment (PythonAnywhere)
+
+### 1. Clone on PythonAnywhere Bash console
+```bash
+git clone https://github.com/krishsavaliya7/Expenss-App.git splitsmart
+cd splitsmart
+python3.11 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python3 -c "from app import init_db; init_db()"
 ```
-http://localhost:8000
+
+### 2. WSGI Configuration
+In the PythonAnywhere **Web tab → WSGI file**, add:
+```python
+import sys, os
+sys.path.insert(0, '/home/YOUR_USERNAME/splitsmart')
+os.environ['SECRET_KEY'] = 'your-secret-key-here'
+from app import app as application
+```
+
+### 3. Static Files
+| URL | Directory |
+|---|---|
+| `/static/` | `/home/YOUR_USERNAME/splitsmart/static` |
+| `/uploads/` | `/home/YOUR_USERNAME/splitsmart/uploads` |
+
+### 4. Reload and visit
+```
+https://YOUR_USERNAME.pythonanywhere.com
 ```
 
 ---
 
-# 📱 Demo Flow
+## 🧠 Settlement Algorithm
 
-1️⃣ User Signup / Login
-2️⃣ Create Group
-3️⃣ Add Friends
-4️⃣ Add Expense
-5️⃣ Split Bill
-6️⃣ Optimize Settlements
-7️⃣ Pay via UPI Simulation or Cash
-8️⃣ Transaction Recorded in Immutable Ledger
+SplitSmart uses a **Greedy Debt Minimization Algorithm** to reduce the number of transactions needed to settle all balances within a group.
 
----
+**Before optimization:**
+```
+User A → User B  ₹200
+User B → User C  ₹150
+User C → User A  ₹300
+```
 
-# 🔐 Security Features
+**After optimization:**
+```
+User C → User B  ₹50
+User C → User A  ₹150
+```
 
-* SHA256 ledger hashing
-* immutable transaction records
-* tamper detection through hash chain
-* secure settlement approvals
-
----
-
-# 🚀 Future Improvements
-
-* Real UPI gateway integration
-* AI based expense categorization
-* OCR receipt scanning
-* financial analytics dashboard
-* real-time WebSocket notifications
+The algorithm runs in **O(n log n)** time and guarantees the minimum number of transactions.
 
 ---
 
-# 👨‍💻 Contributors
+## 🔐 Security Features
 
-**Vishvesh Sharma**
-AI/ML & Full Stack Developer
-
-GitHub
-https://github.com/VishveshSharma2005
-
----
-
-# 🏆 Hackathon Vision
-
-SplitSmart demonstrates how **algorithmic optimization, secure financial logging, and modern FinTech UX** can be combined to build a smarter expense management system for groups.
-
-The goal is to make **shared finances transparent, efficient, and secure**.
+- CSRF token validation on all POST/PUT/DELETE requests
+- SHA256 hash-chain ledger (blockchain-inspired tamper detection)
+- Bcrypt password hashing with werkzeug fallback for legacy passwords
+- Input sanitization to prevent XSS injection
+- File upload restrictions (png/jpg/jpeg/gif only, 16MB max)
+- Profile picture access control (only friends/group members can view)
 
 ---
 
-⭐ If you found this project useful, consider giving it a star!
+## 📱 Demo Flow
+
+1. Sign up with username, email, phone, and UPI ID
+2. Add friends via search
+3. Create a group and add members
+4. Add expenses — split equally, by percentage, or exact amount
+5. View optimized settlement suggestions
+6. Settle via UPI simulation or cash with receiver approval
+7. Every completed settlement is recorded in the immutable ledger
+
+---
+
+## 👨‍💻 Credits
+
+### 🚀 App Creator & Deployment
+**Krish Savaliya**
+> Configured deployment, bug fixes, server setup, and Git hygiene
+
+[![GitHub](https://img.shields.io/badge/GitHub-krishsavaliya7-181717?style=flat&logo=github)](https://github.com/krishsavaliya7)
+
+---
+
+### 💻 Original Code & Backend Development
+**Vishvesh Sharma** and **Raga (error-raga-008)**
+> Built the full Flask backend, settlement algorithm, ledger system, frontend templates, and Android app during a hackathon
+
+[![GitHub](https://img.shields.io/badge/GitHub-VishveshSharma2005-181717?style=flat&logo=github)](https://github.com/VishveshSharma2005)
+[![GitHub](https://img.shields.io/badge/GitHub-error--raga--008-181717?style=flat&logo=github)](https://github.com/error-raga-008)
+
+---
+
+## 📄 License
+
+This project was built as a hackathon demonstration. All original backend logic and frontend design credit goes to the MasterMinds team.

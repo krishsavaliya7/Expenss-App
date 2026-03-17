@@ -42,3 +42,4 @@ desktop.ini
 
 # ── Windows Binaries ─────────────────────
 *.exe
+android/local.properties

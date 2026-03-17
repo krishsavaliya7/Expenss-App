@@ -26,7 +26,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             SplitSmartTheme {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    SplitSmartApp()
+                    SplitSmartAppContent()
                 }
             }
         }
@@ -34,7 +34,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun SplitSmartApp() {
+fun SplitSmartAppContent() {
     val navController = rememberNavController()
     val authViewModel: AuthViewModel = hiltViewModel()
     val authState by authViewModel.uiState.collectAsState()

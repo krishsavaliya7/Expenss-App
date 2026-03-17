@@ -19,15 +19,16 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // TODO: Replace 'yourusername' with your PythonAnywhere username
-        buildConfigField("String", "BASE_URL", "\"https://yourusername.pythonanywhere.com\"")
+        buildConfigField("String", "BASE_URL", "\"https://kaluu007.pythonanywhere.com\"")
     }
 
     buildTypes {
         debug {
-            buildConfigField("String", "BASE_URL", "\"http://10.0.2.2:5000\"")
+            buildConfigField("String", "BASE_URL", "\"https://kaluu007.pythonanywhere.com\"")
         }
         release {
+            // Using debug signing for now so you can build and share easily without a key
+            signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(

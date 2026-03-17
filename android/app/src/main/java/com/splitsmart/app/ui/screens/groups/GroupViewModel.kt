@@ -25,7 +25,7 @@ class GroupViewModel @Inject constructor(private val groupRepository: GroupRepos
         _uiState.value = _uiState.value.copy(isLoading = true)
         when (val r = groupRepository.getGroup(groupId)) { is Result.Success -> _uiState.value = _uiState.value.copy(currentGroup = r.data.group, members = r.data.members ?: emptyList()); else -> {} }
         when (val r = groupRepository.getExpenses(groupId)) { is Result.Success -> _uiState.value = _uiState.value.copy(expenses = r.data.expenses ?: emptyList()); else -> {} }
-        when (val r = groupRepository.getBalances(groupId)) { is Result.Success -> _uiState.value = _uiState.value.copy(balances = r.data.balances ?: emptyList()); else -> {} }
+        when (val r = groupRepository.getBalances(groupId)) { is Result.Success -> _uiState.value = _uiState.value.copy(balances = r.data.balances?.map { (k, v) -> BalanceData(username = k, balance = v) } ?: emptyList()); else -> {} }
         _uiState.value = _uiState.value.copy(isLoading = false)
     }}
 
