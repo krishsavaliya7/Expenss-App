@@ -10,9 +10,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Set up Python 3.11
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: "3.11"
     - name: Install dependencies
@@ -21,6 +21,8 @@ jobs:
         pip install flake8 pytest bandit ruff safety
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
     - name: Security Check - Safety
+      env:
+        SAFETY_API_KEY: ${{ secrets.SAFETY_API_KEY }}
       run: if [ -f requirements.txt ]; then safety check -r requirements.txt; fi
     - name: Security Check - Bandit
       run: bandit -r .
