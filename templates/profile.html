@@ -28,7 +28,7 @@
             </div>
 
             <form action="{{ url_for('update_profile_picture') }}" method="post" enctype="multipart/form-data" class="profile-upload-form">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <label for="profilePic">Update profile photo</label>
                 <input id="profilePic" name="profile_pic" type="file" accept=".png,.jpg,.jpeg,.gif" class="input-file">
                 <button type="submit" class="btn btn-primary">Upload Photo</button>

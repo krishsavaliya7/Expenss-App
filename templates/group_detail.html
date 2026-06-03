@@ -433,7 +433,7 @@
     ">
         <h2 style="margin: 0 0 1.5rem;">Add Expense</h2>
         <form id="expenseForm">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div style="margin-bottom: 1rem;">
                 <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: #1f2937;">Expense Name</label>
                 <input type="text" id="expenseDescription" placeholder="e.g. Dinner at Spice Hub" required style="
@@ -533,7 +533,7 @@
     ">
         <h2 style="margin: 0 0 1.5rem;">Add Member</h2>
         <form id="memberForm">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div style="margin-bottom: 1rem;">
                 <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Username</label>
                 <input type="text" id="memberUsername" autocomplete="off" placeholder="Type username..." required style="
