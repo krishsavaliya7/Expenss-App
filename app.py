@@ -1,13 +1,15 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash, send_from_directory, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, flash, send_from_directory, jsonify, g
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from flask_cors import CORS
+from flask_wtf.csrf import CSRFProtect, generate_csrf
 import sqlite3
 import os
 from datetime import datetime, timedelta
 import secrets
 import hashlib
 import random
+from utils.storage import LocalStorage
 from validation import sanitize_input, validate_name, validate_username, validate_email_format, validate_upi_id
 
 app = Flask(__name__)
@@ -40,9 +42,7 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 DATABASE = os.path.join(BASE_DIR, 'expense_tracker.db')
 INVITE_EXPIRY_DAYS = int(os.environ.get('INVITE_EXPIRY_DAYS', '30'))
 
-# Create uploads folder if it doesn't exist
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
+storage = LocalStorage(UPLOAD_FOLDER)
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
@@ -58,7 +58,6 @@ def uploaded_file(filename):
     c.execute("SELECT username FROM users WHERE profile_pic_url = ?", (profile_path,))
     owner = c.fetchone()
     if not owner:
-        conn.close()
         return {'error': 'File not found'}, 404
 
     owner_username = owner['username']
@@ -81,49 +80,36 @@ def uploaded_file(filename):
             """, (requester, owner_username))
             shares_group = c.fetchone() is not None
             if not shares_group:
-                conn.close()
                 return {'error': 'Access denied'}, 403
 
-    conn.close()
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 
-def get_csrf_token():
-    token = session.get('csrf_token')
-    if not token:
-        token = secrets.token_urlsafe(32)
-        session['csrf_token'] = token
-    return token
+csrf = CSRFProtect()
+csrf.init_app(app)
 
-
-@app.context_processor
-def inject_csrf_token():
-    return {'csrf_token': get_csrf_token()}
-
-
-@app.before_request
-def enforce_csrf_protection():
-    if request.method in ('POST', 'PUT', 'DELETE'):
-        if 'user_id' not in session:
-            return None
-        if 'csrf_token' not in session:
-            session['csrf_token'] = secrets.token_urlsafe(32)
-        token = request.headers.get('X-CSRF-Token')
-        if not token:
-            token = request.form.get('csrf_token')
-        if not token or token != session.get('csrf_token'):
-            return {'error': 'Invalid CSRF token'}, 403
-
+# Exempt auth endpoints from CSRF
+csrf.exempt("app.signup")
+csrf.exempt("app.login")
+csrf.exempt("app.api_auth_login")
+csrf.exempt("app.api_auth_signup")
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 def get_db():
-    conn = sqlite3.connect(DATABASE)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    return conn
+    if 'db' not in g:
+        g.db = sqlite3.connect(DATABASE)
+        g.db.row_factory = sqlite3.Row
+        g.db.execute("PRAGMA journal_mode=WAL")
+    return g.db
+
+@app.teardown_appcontext
+def close_db(error):
+    db = g.pop('db', None)
+    if db is not None:
+        db.close()
 
 
 def init_db():
@@ -365,7 +351,6 @@ def init_db():
         print(f"Payments migration check failed: {e}")
     
     conn.commit()
-    conn.close()
 
 
 # ==================== ADVANCED GREEDY SETTLEMENT ALGORITHM ====================
@@ -420,7 +405,6 @@ def calculate_group_balances(group_id):
         balances[row['from_user']] = balances.get(row['from_user'], 0) + paid_amount
         balances[row['to_user']] = balances.get(row['to_user'], 0) - paid_amount
     
-    conn.close()
     return {k: round(v, 2) for k, v in balances.items() if abs(v) > 0.01}
 
 
@@ -504,7 +488,6 @@ def refresh_group_balances(group_id):
         """, (group_id, user_id, bal, datetime.now()))
 
     conn.commit()
-    conn.close()
 
 
 def create_ledger_transaction(tx_id, group_id, from_user, to_user, amount, payment_method, conn=None):
@@ -530,7 +513,6 @@ def create_ledger_transaction(tx_id, group_id, from_user, to_user, amount, payme
 
     if owns_connection:
         conn.commit()
-        conn.close()
 
     return {
         'tx_id': tx_id,
@@ -563,7 +545,6 @@ def create_notification(user_id, notification_type, title, message='', link=None
 
     if owns_connection:
         conn.commit()
-        conn.close()
 
 
 def format_notification_time(timestamp_str):
@@ -626,7 +607,6 @@ def get_user_groups(username):
             'member_count': row['member_count']
         })
     
-    conn.close()
     return groups
 
 
@@ -643,7 +623,6 @@ def get_group_details(group_id, username):
     
     access = c.fetchone()
     if not access:
-        conn.close()
         return None
     
     # Get group info
@@ -655,7 +634,6 @@ def get_group_details(group_id, username):
     
     group = c.fetchone()
     if not group:
-        conn.close()
         return None
     
     # Get members
@@ -675,7 +653,6 @@ def get_group_details(group_id, username):
         'upi_id': m['upi_id']
     } for m in c.fetchall()]
     
-    conn.close()
     
     return {
         'group_id': group['group_id'],
@@ -704,7 +681,6 @@ def get_pending_cash_settlements(group_id, receiver_username):
         ORDER BY created_at DESC
     """, (group_id, receiver_username))
     rows = [dict(row) for row in c.fetchall()]
-    conn.close()
     return rows
 
 
@@ -716,7 +692,6 @@ def get_user_friends(username):
     c = conn.cursor()
     c.execute('SELECT friend_name FROM friends WHERE user_name = ?', (username,))
     friends = [row['friend_name'] for row in c.fetchall()]
-    conn.close()
     return friends
 
 
@@ -738,7 +713,6 @@ def search_non_friends(username, search_term):
     ''', (search_pattern, search_pattern, username))
     
     all_users = c.fetchall()
-    conn.close()
     
     # Prioritize friends, then non-friends
     results = []
@@ -773,7 +747,6 @@ def get_friend_request_status(sender, receiver):
            OR (sender_name = ? AND receiver_name = ?)
     ''', (sender, receiver, receiver, sender))
     result = c.fetchone()
-    conn.close()
     return result['status'] if result else None
 
 
@@ -797,10 +770,8 @@ def send_friend_request(sender, receiver):
         )
 
         conn.commit()
-        conn.close()
         return True
     except sqlite3.IntegrityError:
-        conn.close()
         return False
 
 
@@ -815,7 +786,6 @@ def accept_friend_request(sender, receiver):
         ''', (sender, receiver))
         request_row = c.fetchone()
         if not request_row:
-            conn.close()
             return False
 
         # Update friend request status
@@ -837,11 +807,9 @@ def accept_friend_request(sender, receiver):
         ''', (receiver, sender, datetime.now()))
         
         conn.commit()
-        conn.close()
         return True
     except sqlite3.IntegrityError:
         conn.rollback()
-        conn.close()
         return False
 
 
@@ -856,7 +824,6 @@ def reject_friend_request(sender, receiver):
         ''', (sender, receiver))
         request_row = c.fetchone()
         if not request_row:
-            conn.close()
             return False
 
         c.execute('''
@@ -865,10 +832,8 @@ def reject_friend_request(sender, receiver):
             WHERE id = ?
         ''', (datetime.now(), request_row['id']))
         conn.commit()
-        conn.close()
         return True
     except:
-        conn.close()
         return False
 
 
@@ -940,22 +905,18 @@ def signup():
         c.execute('SELECT username FROM users WHERE username = ?', (username,))
         if c.fetchone():
             flash('Username already exists! Please choose a different username.', 'error')
-            conn.close()
             return redirect(url_for('signup'))
         
         c.execute('SELECT username FROM users WHERE email = ?', (email,))
         if c.fetchone():
             flash('Email already registered! Please use a different email.', 'error')
-            conn.close()
             return redirect(url_for('signup'))
         
         c.execute('SELECT username FROM users WHERE phone_number = ?', (phone_number,))
         if c.fetchone():
             flash('Phone number already registered! Please use a different phone number.', 'error')
-            conn.close()
             return redirect(url_for('signup'))
         
-        conn.close()
         
         # Handle file upload
         profile_pic_url = None
@@ -965,8 +926,8 @@ def signup():
                 filename = secure_filename(file.filename)
                 # Add timestamp to filename to make it unique
                 filename = f"{int(datetime.now().timestamp())}_{filename}"
-                file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-                profile_pic_url = f"/uploads/{filename}"
+                storage.save(file, filename)
+                profile_pic_url = storage.get_url(filename)
             elif file and file.filename != '':
                 flash('Invalid file type. Only png, jpg, jpeg, gif are allowed!', 'error')
                 return redirect(url_for('signup'))
@@ -980,7 +941,6 @@ def signup():
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (username, email, full_name, phone_number, upi_id, hashed_password, profile_pic_url, datetime.now(), None))
             conn.commit()
-            conn.close()
             flash('Account created successfully! Please login.', 'success')
             return redirect(url_for('login'))
         except sqlite3.IntegrityError as e:
@@ -1006,13 +966,11 @@ def login():
         # Check if input is email or username
         c.execute('SELECT * FROM users WHERE username = ? OR email = ?', (login_input, login_input))
         user = c.fetchone()
-        conn.close()
         
         if user and check_password_hash(user['password'], password):
             session['user_id'] = user['username']
             session['username'] = user['username']
             session['email'] = user['email']
-            get_csrf_token()
             flash(f'Welcome {user["username"]}!', 'success')
             return redirect(url_for('dashboard'))
         else:
@@ -1031,7 +989,6 @@ def dashboard():
     c = conn.cursor()
     c.execute('SELECT * FROM users WHERE username = ?', (session['user_id'],))
     user = c.fetchone()
-    conn.close()
     
     return render_template('dashboard.html', user=user)
 
@@ -1048,7 +1005,6 @@ def profile():
     c.execute('SELECT * FROM users WHERE username = ?', (username,))
     user = c.fetchone()
     if not user:
-        conn.close()
         flash('User profile not found.', 'error')
         return redirect(url_for('dashboard'))
 
@@ -1135,7 +1091,6 @@ def profile():
     ''', (username,))
     user_group_ids = [row['group_id'] for row in c.fetchall()]
 
-    conn.close()
 
     total_payable = 0.0
     total_receivable = 0.0
@@ -1178,9 +1133,8 @@ def update_profile_picture():
 
     safe_name = secure_filename(file.filename)
     unique_name = f"{session['user_id']}_{int(datetime.now().timestamp())}_{safe_name}"
-    file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_name)
-    file.save(file_path)
-    profile_pic_url = f"/uploads/{unique_name}"
+    storage.save(file, unique_name)
+    profile_pic_url = storage.get_url(unique_name)
 
     conn = get_db()
     c = conn.cursor()
@@ -1190,7 +1144,6 @@ def update_profile_picture():
         WHERE username = ?
     ''', (profile_pic_url, session['user_id']))
     conn.commit()
-    conn.close()
 
     flash('Profile picture updated successfully.', 'success')
     return redirect(url_for('profile'))
@@ -1239,7 +1192,6 @@ def friends():
     ''', (username,))
     sent_requests = c.fetchall()
     
-    conn.close()
     
     return render_template('friends.html', 
                          friends=friends_list, 
@@ -1284,9 +1236,7 @@ def send_request():
     c = conn.cursor()
     c.execute('SELECT * FROM friends WHERE user_name = ? AND friend_name = ?', (sender, receiver))
     if c.fetchone():
-        conn.close()
         return {'error': 'Already friends'}, 400
-    conn.close()
     
     if send_friend_request(sender, receiver):
         return {'success': True, 'message': 'Friend request sent'}, 200
@@ -1348,7 +1298,6 @@ def get_friends_api():
             'created_at': row['created_at']
         })
     
-    conn.close()
     return {'friends': friends_list}, 200
 
 
@@ -1397,7 +1346,6 @@ def api_get_notifications():
     """, (session['user_id'],))
     unread_count = c.fetchone()['unread_count']
 
-    conn.close()
 
     return {
         'notifications': notifications,
@@ -1419,7 +1367,6 @@ def api_notifications_count():
         WHERE user_id = ? AND is_read = 0
     """, (session['user_id'],))
     unread_count = c.fetchone()['unread_count']
-    conn.close()
 
     return {'unread_count': unread_count}, 200
 
@@ -1438,7 +1385,6 @@ def api_notifications_read_all():
     """, (session['user_id'],))
     updated = c.rowcount
     conn.commit()
-    conn.close()
 
     return {'updated': updated}, 200
 
@@ -1481,7 +1427,6 @@ def api_notifications_read_visible():
     )
     updated = c.rowcount
     conn.commit()
-    conn.close()
 
     return {'updated': updated}, 200
 
@@ -1539,7 +1484,6 @@ def group_detail(group_id):
     # Cash approvals that require current user's action
     pending_cash_requests = get_pending_cash_settlements(group_id, session['user_id'])
     
-    conn.close()
     
     return render_template('group_detail.html', 
                          group=group, 
@@ -1566,7 +1510,6 @@ def create_group():
     ''', (session['user_id'],))
     
     friends = [{'username': row['friend_name'], 'full_name': row['full_name']} for row in c.fetchall()]
-    conn.close()
     
     return render_template('create_group.html', friends=friends)
 
@@ -1648,7 +1591,6 @@ def api_create_group():
                     pass  # Skip if user already in group
         
         conn.commit()
-        conn.close()
         
         return {
             'success': True,
@@ -1659,7 +1601,6 @@ def api_create_group():
     
     except Exception as e:
         conn.rollback()
-        conn.close()
         return {'error': 'Group creation failed'}, 500
 @app.route('/api/groups/<int:group_id>', methods=['GET'])
 def api_get_group(group_id):
@@ -1693,7 +1634,6 @@ def api_group_member_suggestions(group_id):
 
     access = c.fetchone()
     if not access or access['role'] != 'creator':
-        conn.close()
         return {'error': 'Only group creator can add members'}, 403
 
     # Exclude users already in the group
@@ -1723,7 +1663,6 @@ def api_group_member_suggestions(group_id):
         """, (current_user,))
 
     all_users = c.fetchall()
-    conn.close()
 
     friends = set(get_user_friends(current_user))
 
@@ -1771,13 +1710,11 @@ def api_add_group_member(group_id):
     
     access = c.fetchone()
     if not access or access['role'] != 'creator':
-        conn.close()
         return {'error': 'Only group creator can add members'}, 403
     
     # Check user exists
     c.execute("SELECT username FROM users WHERE username = ?", (username,))
     if not c.fetchone():
-        conn.close()
         return {'error': 'User not found'}, 404
 
     c.execute("SELECT group_name FROM groups WHERE group_id = ?", (group_id,))
@@ -1801,12 +1738,10 @@ def api_add_group_member(group_id):
         )
 
         conn.commit()
-        conn.close()
         
         return {'success': True, 'message': 'Member added successfully'}, 201
     
     except sqlite3.IntegrityError:
-        conn.close()
         return {'error': 'User already in group'}, 400
 
 
@@ -1825,7 +1760,6 @@ def api_get_expenses(group_id):
     """, (group_id, session['user_id']))
     
     if not c.fetchone():
-        conn.close()
         return {'error': 'Access denied'}, 403
     
     # Get expenses
@@ -1862,7 +1796,6 @@ def api_get_expenses(group_id):
             'splits': splits
         })
     
-    conn.close()
     return {'expenses': expenses}, 200
 
 
@@ -1898,7 +1831,6 @@ def api_create_expense(group_id):
     """, (group_id, session['user_id']))
     
     if not c.fetchone():
-        conn.close()
         return {'error': 'Access denied'}, 403
     
     try:
@@ -1911,13 +1843,11 @@ def api_create_expense(group_id):
         members = [m['user_id'] for m in c.fetchall()]
         
         if not members:
-            conn.close()
             return {'error': 'Group has no members'}, 400
         
         # Determine who paid - use provided paid_by or default to current user
         paid_by = data.get('paid_by', '').strip() or session['user_id']
         if paid_by not in members:
-            conn.close()
             return {'error': 'Payer must be a group member'}, 400
 
         # Create expense
@@ -1999,7 +1929,6 @@ def api_create_expense(group_id):
             )
         
         conn.commit()
-        conn.close()
         
         return {
             'success': True,
@@ -2010,7 +1939,6 @@ def api_create_expense(group_id):
     except Exception as e:
         app.logger.exception("Failed to create expense")
         conn.rollback()
-        conn.close()
         return {'error': 'Unable to create expense'}, 400
 
 
@@ -2029,7 +1957,6 @@ def api_delete_expense(group_id, expense_id):
     """, (group_id, session['user_id']))
     
     if not c.fetchone():
-        conn.close()
         return {'error': 'Access denied'}, 403
     
     # Verify expense belongs to group
@@ -2040,11 +1967,9 @@ def api_delete_expense(group_id, expense_id):
     
     expense = c.fetchone()
     if not expense:
-        conn.close()
         return {'error': 'Expense not found'}, 404
 
     if expense['paid_by'] != session['user_id']:
-        conn.close()
         return {'error': 'Only the expense creator can delete this expense'}, 403
     
     try:
@@ -2058,13 +1983,11 @@ def api_delete_expense(group_id, expense_id):
         c.execute("DELETE FROM expenses WHERE id = ?", (expense_id,))
         
         conn.commit()
-        conn.close()
         refresh_group_balances(group_id)
         return {'success': True, 'message': 'Expense deleted successfully'}, 200
     
     except Exception as e:
         conn.rollback()
-        conn.close()
         return {'error': 'Group creation failed'}, 500
 @app.route('/api/groups/<int:group_id>/balances', methods=['GET'])
 def api_get_balances(group_id):
@@ -2081,10 +2004,8 @@ def api_get_balances(group_id):
     """, (group_id, session['user_id']))
     
     if not c.fetchone():
-        conn.close()
         return {'error': 'Access denied'}, 403
     
-    conn.close()
     
     balances = calculate_group_balances(group_id)
     
@@ -2106,10 +2027,8 @@ def api_get_settlement(group_id):
     """, (group_id, session['user_id']))
     
     if not c.fetchone():
-        conn.close()
         return {'error': 'Access denied'}, 403
     
-    conn.close()
     
     refresh_group_balances(group_id)
     settlements, balances = advanced_greedy_settlement(group_id)
@@ -2154,14 +2073,12 @@ def api_request_cash_settlement(group_id):
         SELECT user_id FROM groups_members WHERE group_id = ? AND user_id = ? AND is_active = 1
     """, (group_id, from_user))
     if not c.fetchone():
-        conn.close()
         return {'error': 'Access denied'}, 403
 
     c.execute("""
         SELECT user_id FROM groups_members WHERE group_id = ? AND user_id = ? AND is_active = 1
     """, (group_id, to_user))
     if not c.fetchone():
-        conn.close()
         return {'error': 'Receiver is not in this group'}, 400
 
     balances = calculate_group_balances(group_id)
@@ -2170,11 +2087,9 @@ def api_request_cash_settlement(group_id):
     max_settle = round(min(max(-from_balance, 0), max(to_balance, 0)), 2)
 
     if max_settle <= 0:
-        conn.close()
         return {'error': 'No payable balance found for this pair'}, 400
 
     if amount - max_settle > 0.01:
-        conn.close()
         return {'error': f'Amount exceeds payable limit ({max_settle:.2f})'}, 400
 
     try:
@@ -2207,11 +2122,9 @@ def api_request_cash_settlement(group_id):
         )
 
         conn.commit()
-        conn.close()
     except Exception as e:
         app.logger.exception("Failed to request cash settlement")
         conn.rollback()
-        conn.close()
         return {'error': 'Cash request failed'}, 500
 
     return {
@@ -2238,19 +2151,15 @@ def api_approve_cash_settlement(group_id, settlement_id):
     settlement = c.fetchone()
 
     if not settlement:
-        conn.close()
         return {'error': 'Settlement not found'}, 404
 
     if settlement['payment_method'] != 'CASH':
-        conn.close()
         return {'error': 'This endpoint only approves CASH settlements'}, 400
 
     if settlement['to_user'] != approver:
-        conn.close()
         return {'error': 'Only receiver can approve cash payments'}, 403
 
     if settlement['approval_status'] != 'PENDING' or settlement['settlement_status'] != 'PENDING':
-        conn.close()
         return {'error': 'Settlement is not pending approval'}, 400
 
     try:
@@ -2309,11 +2218,9 @@ def api_approve_cash_settlement(group_id, settlement_id):
         )
 
         conn.commit()
-        conn.close()
     except Exception as e:
         app.logger.exception("Failed to approve cash settlement")
         conn.rollback()
-        conn.close()
         return {'error': 'Cash approval failed'}, 500
 
     refresh_group_balances(group_id)
@@ -2356,17 +2263,14 @@ def api_initiate_upi_settlement(group_id):
     c.execute("SELECT currency FROM groups WHERE group_id = ?", (group_id,))
     group_row = c.fetchone()
     if not group_row:
-        conn.close()
         return {'error': 'Group not found'}, 404
     if group_row['currency'] != 'INR':
-        conn.close()
         return {'error': 'UPI is available only for INR groups'}, 400
 
     c.execute("""
         SELECT user_id FROM groups_members WHERE group_id = ? AND user_id = ? AND is_active = 1
     """, (group_id, from_user))
     if not c.fetchone():
-        conn.close()
         return {'error': 'Access denied'}, 403
 
     c.execute("""
@@ -2377,7 +2281,6 @@ def api_initiate_upi_settlement(group_id):
     """, (group_id, to_user))
     receiver = c.fetchone()
     if not receiver:
-        conn.close()
         return {'error': 'Receiver is not in this group'}, 400
 
     balances = calculate_group_balances(group_id)
@@ -2386,11 +2289,9 @@ def api_initiate_upi_settlement(group_id):
     max_settle = round(min(max(-from_balance, 0), max(to_balance, 0)), 2)
 
     if max_settle <= 0:
-        conn.close()
         return {'error': 'No payable balance found for this pair'}, 400
 
     if amount - max_settle > 0.01:
-        conn.close()
         return {'error': f'Amount exceeds payable limit ({max_settle:.2f})'}, 400
 
     try:
@@ -2412,11 +2313,9 @@ def api_initiate_upi_settlement(group_id):
         """, (pending_tx_id, group_id, settlement_id, from_user, to_user, from_user, to_user, amount, upi_ref or None))
 
         conn.commit()
-        conn.close()
     except Exception as e:
         app.logger.exception("Failed to initiate UPI settlement")
         conn.rollback()
-        conn.close()
         return {'error': 'UPI initiation failed'}, 500
 
     return {
@@ -2448,19 +2347,15 @@ def api_confirm_upi_settlement(group_id, settlement_id):
     settlement = c.fetchone()
 
     if not settlement:
-        conn.close()
         return {'error': 'Settlement not found'}, 404
 
     if settlement['payment_method'] != 'UPI':
-        conn.close()
         return {'error': 'This endpoint only confirms UPI settlements'}, 400
 
     if settlement['from_user'] != current_user:
-        conn.close()
         return {'error': 'Only debtor can confirm UPI payment'}, 403
 
     if settlement['settlement_status'] != 'PENDING':
-        conn.close()
         return {'error': 'Settlement already completed'}, 400
 
     transaction_id = generate_transaction_id()
@@ -2520,7 +2415,6 @@ def api_confirm_upi_settlement(group_id, settlement_id):
     )
 
     conn.commit()
-    conn.close()
 
     refresh_group_balances(group_id)
 
@@ -2547,7 +2441,6 @@ def api_get_transactions(group_id):
     """, (group_id, session['user_id']))
     
     if not c.fetchone():
-        conn.close()
         return {'error': 'Access denied'}, 403
     
     # Get hash-chained ledger transactions with user details (compatible with legacy schema)
@@ -2588,7 +2481,6 @@ def api_get_transactions(group_id):
             'current_hash': row['current_hash']
         })
     
-    conn.close()
     return {'transactions': transactions}, 200
 
 
@@ -2617,7 +2509,6 @@ def ledger_page():
     """, (session['user_id'],))
 
     ledger_entries = [dict(row) for row in c.fetchall()]
-    conn.close()
 
     return render_template('ledger.html', ledger_entries=ledger_entries)
 
@@ -2638,7 +2529,6 @@ def api_join_group_via_invite(token):
     
     group = c.fetchone()
     if not group:
-        conn.close()
         return {'error': 'Invalid invite token'}, 404
     
     group_id = group['group_id']
@@ -2650,7 +2540,6 @@ def api_join_group_via_invite(token):
     invite_row = c.fetchone()
     if invite_row:
         if invite_row['status'] != 'pending':
-            conn.close()
             return {'error': 'Invite token is no longer active'}, 400
 
         c.execute("""
@@ -2658,7 +2547,6 @@ def api_join_group_via_invite(token):
             WHERE id = ? AND expire_at IS NOT NULL AND expire_at < CURRENT_TIMESTAMP
         """, (invite_row['id'],))
         if c.fetchone():
-            conn.close()
             return {'error': 'Invite token has expired'}, 400
     
     try:
@@ -2676,7 +2564,6 @@ def api_join_group_via_invite(token):
             """, (invite_row['id'],))
         
         conn.commit()
-        conn.close()
         
         return {
             'success': True,
@@ -2685,12 +2572,10 @@ def api_join_group_via_invite(token):
         }, 201
     
     except sqlite3.IntegrityError:
-        conn.close()
         return {'error': 'Already a member of this group'}, 400
     
     except Exception as e:
         conn.rollback()
-        conn.close()
         return {'error': 'Group creation failed'}, 500
 # ──────────────────────────────────────────────
 # JSON Auth API (for mobile app)
@@ -2739,17 +2624,14 @@ def api_auth_signup():
 
     c.execute('SELECT username FROM users WHERE username = ?', (username,))
     if c.fetchone():
-        conn.close()
         return {'success': False, 'error': 'Username already exists'}, 409
 
     c.execute('SELECT username FROM users WHERE email = ?', (email,))
     if c.fetchone():
-        conn.close()
         return {'success': False, 'error': 'Email already registered'}, 409
 
     c.execute('SELECT username FROM users WHERE phone_number = ?', (phone_number,))
     if c.fetchone():
-        conn.close()
         return {'success': False, 'error': 'Phone number already registered'}, 409
 
     try:
@@ -2759,7 +2641,6 @@ def api_auth_signup():
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (username, email, full_name, phone_number, upi_id, hashed_password, None, datetime.now(), None))
         conn.commit()
-        conn.close()
         return {'success': True, 'user': {
             'username': username,
             'email': email,
@@ -2768,7 +2649,6 @@ def api_auth_signup():
             'upi_id': upi_id
         }}, 201
     except sqlite3.IntegrityError:
-        conn.close()
         return {'success': False, 'error': 'Registration failed. Please try again.'}, 500
 
 
@@ -2785,13 +2665,11 @@ def api_auth_login():
     c = conn.cursor()
     c.execute('SELECT * FROM users WHERE username = ? OR email = ?', (login_input, login_input))
     user = c.fetchone()
-    conn.close()
 
     if user and check_password_hash(user['password'], password):
         session['user_id'] = user['username']
         session['username'] = user['username']
         session['email'] = user['email']
-        get_csrf_token()
         return {'success': True, 'user': {
             'username': user['username'],
             'email': user['email'],
@@ -2799,7 +2677,7 @@ def api_auth_login():
             'phone_number': user['phone_number'],
             'upi_id': user['upi_id'],
             'profile_pic_url': user['profile_pic_url']
-        }, 'csrf_token': session.get('csrf_token')}, 200
+        }, 'csrf_token': generate_csrf()}, 200
     else:
         return {'success': False, 'error': 'Invalid username/email or password'}, 401
 
@@ -2813,7 +2691,6 @@ def api_auth_me():
     c = conn.cursor()
     c.execute('SELECT * FROM users WHERE username = ?', (session['user_id'],))
     user = c.fetchone()
-    conn.close()
 
     if not user:
         return {'success': False, 'error': 'User not found'}, 404
@@ -2848,7 +2725,6 @@ def api_auth_update_profile():
     user = c.fetchone()
 
     if not user:
-        conn.close()
         return {'success': False, 'error': 'User not found'}, 404
 
     full_name = sanitize_input(data.get('full_name', user['full_name']).strip())
@@ -2858,30 +2734,25 @@ def api_auth_update_profile():
 
     name_err = validate_name(full_name)
     if name_err:
-        conn.close()
         return {'success': False, 'error': name_err}, 400
 
     email_err = validate_email_format(email)
     if email_err:
-        conn.close()
         return {'success': False, 'error': email_err}, 400
 
     upi_err = validate_upi_id(upi_id)
     if upi_err:
-        conn.close()
         return {'success': False, 'error': upi_err}, 400
 
     # Check uniqueness for changed fields
     if email != user['email']:
         c.execute('SELECT username FROM users WHERE email = ? AND username != ?', (email, username))
         if c.fetchone():
-            conn.close()
             return {'success': False, 'error': 'Email already in use'}, 409
 
     if phone_number != user['phone_number']:
         c.execute('SELECT username FROM users WHERE phone_number = ? AND username != ?', (phone_number, username))
         if c.fetchone():
-            conn.close()
             return {'success': False, 'error': 'Phone number already in use'}, 409
 
     try:
@@ -2891,7 +2762,6 @@ def api_auth_update_profile():
         ''', (full_name, phone_number, upi_id, email, datetime.now(), username))
         conn.commit()
         session['email'] = email
-        conn.close()
         return {'success': True, 'user': {
             'username': username,
             'email': email,
@@ -2902,15 +2772,14 @@ def api_auth_update_profile():
     except Exception as e:
         app.logger.exception("Failed to update profile")
         conn.rollback()
-        conn.close()
         return {'success': False, 'error': 'Profile update failed'}, 500
 
 
-# Initialize database on import (needed for PythonAnywhere/WSGI)
-if not os.path.exists(DATABASE):
+@app.cli.command('init-db')
+def init_db_command():
+    """Clear the existing data and create new tables."""
     init_db()
-else:
-    init_db()
+    print('Initialized the database.')
 
 if __name__ == '__main__':
     debug_mode = os.environ.get('FLASK_DEBUG', 'false').lower() == 'true'

@@ -36,7 +36,7 @@
             {% endwith %}
 
             <form method="POST" enctype="multipart/form-data" class="form-grid" novalidate>
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="row-2">
                     {{ form_field('email', 'Email', field_type='email', placeholder='you@example.com', autocomplete='email', required=true) }}
                     {{ form_field('username', 'Username', placeholder='Choose a username', autocomplete='username', required=true) }}
