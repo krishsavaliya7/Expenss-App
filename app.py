@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash, send_from_directory, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, flash, send_from_directory
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from flask_cors import CORS
@@ -7,7 +7,6 @@ import os
 from datetime import datetime, timedelta
 import secrets
 import hashlib
-import random
 from validation import sanitize_input, validate_name, validate_username, validate_email_format, validate_upi_id
 
 app = Flask(__name__)
@@ -867,7 +866,7 @@ def reject_friend_request(sender, receiver):
         conn.commit()
         conn.close()
         return True
-    except:
+    except Exception:
         conn.close()
         return False
 
@@ -983,7 +982,7 @@ def signup():
             conn.close()
             flash('Account created successfully! Please login.', 'success')
             return redirect(url_for('login'))
-        except sqlite3.IntegrityError as e:
+        except sqlite3.IntegrityError:
             flash('An error occurred during registration. Please try again.', 'error')
             return redirect(url_for('signup'))
     
@@ -1476,7 +1475,7 @@ def api_notifications_read_visible():
         WHERE user_id = ?
           AND is_read = 0
           AND id IN ({placeholders})
-        """,
+        """,  # nosec
         params
     )
     updated = c.rowcount
@@ -1657,7 +1656,7 @@ def api_create_group():
             'message': 'Group created successfully'
         }, 201
     
-    except Exception as e:
+    except Exception:
         conn.rollback()
         conn.close()
         return {'error': 'Group creation failed'}, 500
@@ -2007,7 +2006,7 @@ def api_create_expense(group_id):
             'message': 'Expense created successfully'
         }, 201
     
-    except Exception as e:
+    except Exception:
         app.logger.exception("Failed to create expense")
         conn.rollback()
         conn.close()
@@ -2062,7 +2061,7 @@ def api_delete_expense(group_id, expense_id):
         refresh_group_balances(group_id)
         return {'success': True, 'message': 'Expense deleted successfully'}, 200
     
-    except Exception as e:
+    except Exception:
         conn.rollback()
         conn.close()
         return {'error': 'Group creation failed'}, 500
@@ -2208,7 +2207,7 @@ def api_request_cash_settlement(group_id):
 
         conn.commit()
         conn.close()
-    except Exception as e:
+    except Exception:
         app.logger.exception("Failed to request cash settlement")
         conn.rollback()
         conn.close()
@@ -2310,7 +2309,7 @@ def api_approve_cash_settlement(group_id, settlement_id):
 
         conn.commit()
         conn.close()
-    except Exception as e:
+    except Exception:
         app.logger.exception("Failed to approve cash settlement")
         conn.rollback()
         conn.close()
@@ -2413,7 +2412,7 @@ def api_initiate_upi_settlement(group_id):
 
         conn.commit()
         conn.close()
-    except Exception as e:
+    except Exception:
         app.logger.exception("Failed to initiate UPI settlement")
         conn.rollback()
         conn.close()
@@ -2688,7 +2687,7 @@ def api_join_group_via_invite(token):
         conn.close()
         return {'error': 'Already a member of this group'}, 400
     
-    except Exception as e:
+    except Exception:
         conn.rollback()
         conn.close()
         return {'error': 'Group creation failed'}, 500
@@ -2899,7 +2898,7 @@ def api_auth_update_profile():
             'phone_number': phone_number,
             'upi_id': upi_id
         }}, 200
-    except Exception as e:
+    except Exception:
         app.logger.exception("Failed to update profile")
         conn.rollback()
         conn.close()
