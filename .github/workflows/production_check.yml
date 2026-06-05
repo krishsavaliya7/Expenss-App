@@ -1,0 +1,35 @@
+name: Production Ready Check
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 pytest bandit ruff safety
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+    - name: Security Check - Safety
+      env:
+        SAFETY_API_KEY: ${{ secrets.SAFETY_API_KEY }}
+      run: if [ -f requirements.txt ]; then safety check -r requirements.txt; fi
+    - name: Security Check - Bandit
+      run: bandit -r .
+    - name: Lint with flake8
+      run: |
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+    - name: Run Ruff
+      run: ruff check .
+    - name: Run Tests
+      run: pytest || [ $? -eq 5 ]
